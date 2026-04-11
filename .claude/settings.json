@@ -1,4 +1,20 @@
 {
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:docs.farcaster.xyz)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(curl *docs.farcaster.xyz*)",
+      "Bash(pnpm *)",
+      "Bash(npm run *)",
+      "Bash(npx *)",
+      "Bash(git *)",
+      "WebFetch(domain:clanker.world)",
+      "WebFetch(domain:www.clanker.world)",
+      "WebFetch(domain:clanker.gitbook.io)",
+      "WebFetch(domain:miniapps.farcaster.xyz)",
+      "Bash(gh api:*)"
+    ]
+  },
   "disabledMcpServers": [
     "claude_ai_Figma",
     "claude_ai_Gmail",
@@ -9,16 +25,5 @@
     "claude_ai_PubMed",
     "claude_ai_Excalidraw",
     "claude_ai_Vercel"
-  ],
-  "permissions": {
-    "allow": [
-      "WebFetch(domain:docs.farcaster.xyz)",
-      "WebFetch(domain:raw.githubusercontent.com)",
-      "Bash(curl *docs.farcaster.xyz*)",
-      "Bash(pnpm *)",
-      "Bash(npm run *)",
-      "Bash(npx *)",
-      "Bash(git *)"
-    ]
-  }
+  ]
 }

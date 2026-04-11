@@ -1,0 +1,8 @@
+{
+  "name": "farcaster-snaps",
+  "private": true,
+  "packageManager": "pnpm@9.15.4",
+  "workspaces": [
+    "snaps/*"
+  ]
+}

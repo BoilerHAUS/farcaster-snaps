@@ -13,6 +13,7 @@ Deployment target: `host.neynar.app` (not Vercel, not Railway).
 Only invoke these skills for this project:
 
 - `/farcaster-snap` — core snap development patterns, response format, deployment
+- `/clanker` — Clanker REST API (token search), SDK (token deployment), send_token integration
 - `/coding-standards` — TypeScript/JS quality rules
 - `/tdd-workflow` — test-first development
 - `/api-design` — snap endpoint design
