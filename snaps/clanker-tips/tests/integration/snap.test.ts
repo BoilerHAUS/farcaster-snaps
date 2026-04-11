@@ -46,72 +46,76 @@ function isValidSnapResult(result: SnapHandlerResult): void {
 
 describe("homeScreen", () => {
   it("returns a valid snap response", () => {
-    const result = homeScreen();
+    const result = homeScreen("http://localhost:3003");
     isValidSnapResult(result);
   });
 
-  it("has recipient and token search inputs", () => {
-    const result = homeScreen();
+  it("has recipient and token search inputs as direct root children", () => {
+    const result = homeScreen("http://localhost:3003");
     const els = result.ui.elements;
     expect(els["recipient_input"]).toBeDefined();
     expect((els["recipient_input"] as unknown as { props: { name: string } }).props.name).toBe("r");
     expect(els["token_input"]).toBeDefined();
     expect((els["token_input"] as unknown as { props: { name: string } }).props.name).toBe("q");
+    const rootChildren = (els["page"] as unknown as { children: string[] }).children;
+    expect(rootChildren).toContain("recipient_input");
+    expect(rootChildren).toContain("token_input");
+    expect(els["inputs"]).toBeUndefined();
   });
 
   it("has a search button targeting /?step=search", () => {
-    const result = homeScreen();
+    const result = homeScreen("http://localhost:3003");
     const searchBtn = result.ui.elements["search_btn"] as unknown as {
       on: { press: { action: string; params: { target: string } } };
     };
     expect(searchBtn.on.press.action).toBe("submit");
-    expect(searchBtn.on.press.params.target).toBe("/?step=search");
+    expect(searchBtn.on.press.params.target).toBe("http://localhost:3003/?step=search");
   });
 
   it("has a humble dev tip button targeting /?step=dev", () => {
-    const result = homeScreen();
+    const result = homeScreen("http://localhost:3003");
     const devBtn = result.ui.elements["devtip_btn"] as unknown as {
       on: { press: { action: string; params: { target: string } } };
     };
     expect(devBtn.on.press.action).toBe("submit");
-    expect(devBtn.on.press.params.target).toBe("/?step=dev");
+    expect(devBtn.on.press.params.target).toBe("http://localhost:3003/?step=dev");
   });
 
   it("uses green accent theme", () => {
-    const result = homeScreen();
+    const result = homeScreen("http://localhost:3003");
     expect(result.theme?.accent).toBe("green");
   });
 });
 
 describe("devSearchScreen", () => {
   it("returns a valid snap response", () => {
-    isValidSnapResult(devSearchScreen());
+    isValidSnapResult(devSearchScreen("http://localhost:3003"));
   });
 
   it("mentions @boiler in the title", () => {
-    const result = devSearchScreen();
+    const result = devSearchScreen("http://localhost:3003");
     const title = result.ui.elements["title"] as unknown as { props: { content: string } };
     expect(title.props.content).toContain("boiler");
   });
 
   it("has a token search input with name q", () => {
-    const result = devSearchScreen();
+    const result = devSearchScreen("http://localhost:3003");
     const input = result.ui.elements["token_input"] as unknown as { props: { name: string } };
     expect(input.props.name).toBe("q");
   });
 
   it("search button targets /?step=dev-search", () => {
-    const result = devSearchScreen();
+    const result = devSearchScreen("http://localhost:3003");
     const btn = result.ui.elements["search_btn"] as unknown as {
       on: { press: { params: { target: string } } };
     };
-    expect(btn.on.press.params.target).toBe("/?step=dev-search");
+    expect(btn.on.press.params.target).toBe("http://localhost:3003/?step=dev-search");
   });
 });
 
 describe("searchResultsScreen", () => {
   it("returns valid snap response with tokens", () => {
-    const result = searchResultsScreen({
+    const result = searchResultsScreen({ base: "http://localhost:3003",
       tokens: [mockToken],
       recipientFid: 12345,
       recipientUsername: "alice",
@@ -122,7 +126,7 @@ describe("searchResultsScreen", () => {
   });
 
   it("shows recipient badge with @username", () => {
-    const result = searchResultsScreen({
+    const result = searchResultsScreen({ base: "http://localhost:3003",
       tokens: [mockToken],
       recipientFid: 12345,
       recipientUsername: "alice",
@@ -137,7 +141,7 @@ describe("searchResultsScreen", () => {
   });
 
   it("shows empty state when no tokens found", () => {
-    const result = searchResultsScreen({
+    const result = searchResultsScreen({ base: "http://localhost:3003",
       tokens: [],
       recipientFid: 12345,
       recipientUsername: "alice",
@@ -150,7 +154,7 @@ describe("searchResultsScreen", () => {
   });
 
   it("each token has a TIP button with submit action", () => {
-    const result = searchResultsScreen({
+    const result = searchResultsScreen({ base: "http://localhost:3003",
       tokens: [mockToken],
       recipientFid: 12345,
       recipientUsername: "alice",
@@ -168,7 +172,7 @@ describe("searchResultsScreen", () => {
 
   it("shows warning indicator for tokens with warnings", () => {
     const warnToken = { ...mockToken, warnings: ["honeypot"] };
-    const result = searchResultsScreen({
+    const result = searchResultsScreen({ base: "http://localhost:3003",
       tokens: [warnToken],
       recipientFid: 12345,
       recipientUsername: "alice",
@@ -187,7 +191,7 @@ describe("searchResultsScreen", () => {
       id: i,
       contract_address: `0xaddr${i}`,
     }));
-    const result = searchResultsScreen({
+    const result = searchResultsScreen({ base: "http://localhost:3003",
       tokens: manyTokens,
       recipientFid: 12345,
       recipientUsername: "alice",
@@ -209,11 +213,11 @@ describe("tipAmountScreen", () => {
   };
 
   it("returns a valid snap response", () => {
-    isValidSnapResult(tipAmountScreen(state));
+    isValidSnapResult(tipAmountScreen("http://localhost:3003", state));
   });
 
   it("shows token and recipient badges", () => {
-    const result = tipAmountScreen(state);
+    const result = tipAmountScreen("http://localhost:3003", state);
     const tokenBadge = result.ui.elements["token_badge"] as unknown as {
       props: { label: string };
     };
@@ -225,7 +229,7 @@ describe("tipAmountScreen", () => {
   });
 
   it("preset buttons fire send_token actions with correct CAIP-19", () => {
-    const result = tipAmountScreen(state);
+    const result = tipAmountScreen("http://localhost:3003", state);
     const btn100 = result.ui.elements["btn_100"] as unknown as {
       on: {
         press: {
@@ -243,7 +247,7 @@ describe("tipAmountScreen", () => {
   });
 
   it("all 4 preset buttons exist", () => {
-    const result = tipAmountScreen(state);
+    const result = tipAmountScreen("http://localhost:3003", state);
     expect(result.ui.elements["btn_100"]).toBeDefined();
     expect(result.ui.elements["btn_500"]).toBeDefined();
     expect(result.ui.elements["btn_1000"]).toBeDefined();
@@ -251,7 +255,7 @@ describe("tipAmountScreen", () => {
   });
 
   it("SEND button submits to confirm step", () => {
-    const result = tipAmountScreen(state);
+    const result = tipAmountScreen("http://localhost:3003", state);
     const sendBtn = result.ui.elements["send_btn"] as unknown as {
       on: { press: { action: string; params: { target: string } } };
     };
@@ -270,11 +274,11 @@ describe("confirmScreen", () => {
   };
 
   it("returns a valid snap response", () => {
-    isValidSnapResult(confirmScreen({ state, amount: "500" }));
+    isValidSnapResult(confirmScreen({ base: "http://localhost:3003", state, amount: "500" }));
   });
 
   it("SEND button fires send_token with correct params", () => {
-    const result = confirmScreen({ state, amount: "500" });
+    const result = confirmScreen({ base: "http://localhost:3003", state, amount: "500" });
     const sendBtn = result.ui.elements["send_btn"] as unknown as {
       on: {
         press: {
@@ -290,7 +294,7 @@ describe("confirmScreen", () => {
   });
 
   it("I SENT IT button navigates to success step", () => {
-    const result = confirmScreen({ state, amount: "500" });
+    const result = confirmScreen({ base: "http://localhost:3003", state, amount: "500" });
     const sentBtn = result.ui.elements["sent_btn"] as unknown as {
       on: { press: { params: { target: string } } };
     };
@@ -300,6 +304,7 @@ describe("confirmScreen", () => {
 
   it("shows error message when provided", () => {
     const result = confirmScreen({
+      base: "http://localhost:3003",
       state,
       amount: "abc",
       errorMsg: "! Enter a valid positive number",
@@ -319,16 +324,16 @@ describe("successScreen", () => {
   };
 
   it("returns a valid snap response", () => {
-    isValidSnapResult(successScreen(state, "500"));
+    isValidSnapResult(successScreen("http://localhost:3003", state, "500"));
   });
 
   it("includes confetti effect", () => {
-    const result = successScreen(state, "500");
+    const result = successScreen("http://localhost:3003", state, "500");
     expect(result.effects).toContain("confetti");
   });
 
   it("shows amount and recipient in summary", () => {
-    const result = successScreen(state, "500");
+    const result = successScreen("http://localhost:3003", state, "500");
     const summary = result.ui.elements["summary"] as unknown as {
       props: { title: string; description: string };
     };
@@ -338,27 +343,27 @@ describe("successScreen", () => {
   });
 
   it("tip again button navigates to home", () => {
-    const result = successScreen(state, "500");
+    const result = successScreen("http://localhost:3003", state, "500");
     const btn = result.ui.elements["tip_again_btn"] as unknown as {
       on: { press: { params: { target: string } } };
     };
-    expect(btn.on.press.params.target).toBe("/");
+    expect(btn.on.press.params.target).toBe("http://localhost:3003/");
   });
 });
 
 describe("errorScreen", () => {
   it("returns a valid snap response", () => {
-    isValidSnapResult(errorScreen("Something went wrong"));
+    isValidSnapResult(errorScreen("http://localhost:3003", "Something went wrong"));
   });
 
   it("displays the error message", () => {
-    const result = errorScreen("User not found");
+    const result = errorScreen("http://localhost:3003", "User not found");
     const txt = result.ui.elements["error_text"] as unknown as { props: { content: string } };
     expect(txt.props.content).toContain("User not found");
   });
 
   it("back button uses the provided backStep", () => {
-    const result = errorScreen("Oops", "dev");
+    const result = errorScreen("http://localhost:3003", "Oops", "dev");
     const btn = result.ui.elements["back_btn"] as unknown as {
       on: { press: { params: { target: string } } };
     };

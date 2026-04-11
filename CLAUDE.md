@@ -14,6 +14,7 @@ Only invoke these skills for this project:
 
 - `/farcaster-snap` — core snap development patterns, response format, deployment
 - `/clanker` — Clanker REST API (token search), SDK (token deployment), send_token integration
+- `/neynar-deploy` — deploy snaps to host.neynar.app: archive, POST to API, poll for build status, rollback
 - `/coding-standards` — TypeScript/JS quality rules
 - `/tdd-workflow` — test-first development
 - `/api-design` — snap endpoint design

@@ -1,7 +1,8 @@
 import type { SnapHandlerResult } from "@farcaster/snap";
+import { stepTarget } from "../lib/params.js";
 
 /** Token search screen for "tip dev" flow — recipient is pre-fixed to @boiler. */
-export function devSearchScreen(): SnapHandlerResult {
+export function devSearchScreen(base: string): SnapHandlerResult {
   return {
     version: "2.0",
     theme: { accent: "green" },
@@ -36,7 +37,7 @@ export function devSearchScreen(): SnapHandlerResult {
           on: {
             press: {
               action: "submit",
-              params: { target: "/?step=dev-search" },
+              params: { target: stepTarget(base, "dev-search") },
             },
           },
         },
@@ -44,7 +45,10 @@ export function devSearchScreen(): SnapHandlerResult {
           type: "button",
           props: { label: "< BACK", variant: "secondary" },
           on: {
-            press: { action: "submit", params: { target: "/" } },
+            press: {
+              action: "submit",
+              params: { target: `${base}/` },
+            },
           },
         },
       },

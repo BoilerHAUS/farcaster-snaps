@@ -1,37 +1,31 @@
 import type { SnapHandlerResult, SnapElementInput } from "@farcaster/snap";
 import type { TipState } from "../lib/params.js";
-import { buildTarget, caip19 } from "../lib/params.js";
-import { P } from "../lib/params.js";
+import { buildTarget, caip19, P } from "../lib/params.js";
 
 type ConfirmOpts = {
+  base: string;
   state: TipState;
   amount: string;
   errorMsg?: string;
 };
 
-export function confirmScreen({ state, amount, errorMsg }: ConfirmOpts): SnapHandlerResult {
+export function confirmScreen({ base, state, amount, errorMsg }: ConfirmOpts): SnapHandlerResult {
   const recipientLabel =
     state.username && !state.username.match(/^\d+$/)
       ? `@${state.username}`
       : `FID ${state.fid}`;
 
-  const successTarget = buildTarget("success", state, {
+  const successTarget = buildTarget(base, "success", state, {
     [P.AMOUNT]: amount,
   });
 
-  const tipTarget = buildTarget("tip", state);
+  const tipTarget = buildTarget(base, "tip", state);
 
   const elements: Record<string, SnapElementInput> = {
     page: {
       type: "stack",
       props: { direction: "vertical", gap: "md" },
-      children: [
-        "title",
-        "summary",
-        "hint",
-        "send_btn",
-        "actions_row",
-      ],
+      children: ["title", "summary", "hint", "send_btn", "actions_row"],
     },
     title: {
       type: "text",
@@ -47,7 +41,9 @@ export function confirmScreen({ state, amount, errorMsg }: ConfirmOpts): SnapHan
     hint: {
       type: "text",
       props: {
-        content: errorMsg ?? "Tap SEND to open your wallet, then confirm I SENT IT!",
+        content:
+          errorMsg ??
+          "Tap SEND to open your wallet, then confirm I SENT IT!",
         size: "sm",
       },
     },

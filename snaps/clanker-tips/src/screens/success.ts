@@ -2,7 +2,7 @@ import type { SnapHandlerResult } from "@farcaster/snap";
 import type { TipState } from "../lib/params.js";
 import { sparkleSprite } from "../assets/sprites.js";
 
-export function successScreen(state: TipState, amount: string): SnapHandlerResult {
+export function successScreen(base: string, state: TipState, amount: string): SnapHandlerResult {
   const recipientLabel =
     state.username && !state.username.match(/^\d+$/)
       ? `@${state.username}`
@@ -36,7 +36,7 @@ export function successScreen(state: TipState, amount: string): SnapHandlerResul
           type: "button",
           props: { label: "TIP AGAIN >", variant: "primary" },
           on: {
-            press: { action: "submit", params: { target: "/" } },
+            press: { action: "submit", params: { target: `${base}/` } },
           },
         },
       },

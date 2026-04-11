@@ -1,12 +1,12 @@
 import type { SnapHandlerResult } from "@farcaster/snap";
 import type { TipState } from "../lib/params.js";
-import { buildTarget, caip19 } from "../lib/params.js";
+import { buildTarget, stepTarget, caip19 } from "../lib/params.js";
 
 const PRESET_AMOUNTS = ["100", "500", "1000", "5000"] as const;
 
-export function tipAmountScreen(state: TipState): SnapHandlerResult {
+export function tipAmountScreen(base: string, state: TipState): SnapHandlerResult {
   const tokenCaip19 = caip19(state.addr);
-  const confirmTarget = buildTarget("confirm", state);
+  const confirmTarget = buildTarget(base, "confirm", state);
 
   return {
     version: "2.0",
@@ -22,7 +22,8 @@ export function tipAmountScreen(state: TipState): SnapHandlerResult {
             "token_badge",
             "recipient_badge",
             "presets",
-            "custom_row",
+            "custom_input",
+            "send_btn",
             "back_btn",
           ],
         },
@@ -37,9 +38,10 @@ export function tipAmountScreen(state: TipState): SnapHandlerResult {
         recipient_badge: {
           type: "badge",
           props: {
-            label: state.username && !state.username.match(/^\d+$/)
-              ? `Tip: @${state.username}`
-              : `Tip: FID ${state.fid}`,
+            label:
+              state.username && !state.username.match(/^\d+$/)
+                ? `Tip: @${state.username}`
+                : `Tip: FID ${state.fid}`,
             color: "gray",
           },
         },
@@ -67,11 +69,6 @@ export function tipAmountScreen(state: TipState): SnapHandlerResult {
             },
           ])
         ),
-        custom_row: {
-          type: "stack",
-          props: { direction: "horizontal", gap: "sm" },
-          children: ["custom_input", "send_btn"],
-        },
         custom_input: {
           type: "input",
           props: {
@@ -92,7 +89,10 @@ export function tipAmountScreen(state: TipState): SnapHandlerResult {
           type: "button",
           props: { label: "< BACK", variant: "secondary" },
           on: {
-            press: { action: "submit", params: { target: "/?step=home" } },
+            press: {
+              action: "submit",
+              params: { target: stepTarget(base, "home") },
+            },
           },
         },
       },

@@ -1,6 +1,7 @@
 import type { SnapHandlerResult } from "@farcaster/snap";
+import { stepTarget } from "../lib/params.js";
 
-export function errorScreen(message: string, backStep = "home"): SnapHandlerResult {
+export function errorScreen(base: string, message: string, backStep = "home"): SnapHandlerResult {
   return {
     version: "2.0",
     theme: { accent: "green" },
@@ -22,7 +23,7 @@ export function errorScreen(message: string, backStep = "home"): SnapHandlerResu
           on: {
             press: {
               action: "submit",
-              params: { target: `/?step=${backStep}` },
+              params: { target: stepTarget(base, backStep) },
             },
           },
         },

@@ -1,5 +1,3 @@
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { Hono } from "hono";
 import type { SnapFunction } from "@farcaster/snap";
 import { registerSnapHandler } from "@farcaster/snap-hono";
@@ -15,13 +13,14 @@ import { errorScreen } from "./screens/error.js";
 import { searchTokens } from "./lib/clanker.js";
 import { resolveRecipient } from "./lib/farcaster.js";
 import { isValidAmount, formatAmount } from "./lib/format.js";
-import { extractTipState, P } from "./lib/params.js";
+import { extractTipState, snapBase, P } from "./lib/params.js";
 
 /** Farcaster FID for @boiler (the snap creator). */
 const DEV_FID = 14217;
 const DEV_USERNAME = "boiler";
 
 const snap: SnapFunction = async (ctx) => {
+  const base = snapBase(ctx.request);
   const url = new URL(ctx.request.url);
   const step = url.searchParams.get(P.STEP) ?? "home";
 
@@ -30,10 +29,10 @@ const snap: SnapFunction = async (ctx) => {
     if (step === "success") {
       const state = extractTipState(url.searchParams);
       const amount = url.searchParams.get(P.AMOUNT) ?? "?";
-      if (!state) return homeScreen();
-      return successScreen(state, amount);
+      if (!state) return homeScreen(base);
+      return successScreen(base, state, amount);
     }
-    return homeScreen();
+    return homeScreen(base);
   }
 
   // ── POST requests (all button submit actions) ──────────────────────────────
@@ -46,10 +45,10 @@ const snap: SnapFunction = async (ctx) => {
       const query = String(inputs["q"] ?? "").trim();
 
       if (!recipientRaw) {
-        return errorScreen("Enter a username or FID to tip.", "home");
+        return errorScreen(base, "Enter a username or FID to tip.", "home");
       }
       if (!query) {
-        return errorScreen("Enter a token name or symbol to search.", "home");
+        return errorScreen(base, "Enter a token name or symbol to search.", "home");
       }
 
       const [recipient, tokens] = await Promise.all([
@@ -59,12 +58,14 @@ const snap: SnapFunction = async (ctx) => {
 
       if (!recipient) {
         return errorScreen(
+          base,
           `Could not find user "${recipientRaw}". Check the username or FID.`,
           "home"
         );
       }
 
       return searchResultsScreen({
+        base,
         tokens,
         recipientFid: recipient.fid,
         recipientUsername: recipient.username,
@@ -76,11 +77,12 @@ const snap: SnapFunction = async (ctx) => {
     // Dev search: recipient is hardcoded to @boiler
     case "dev-search": {
       const query = String(inputs["q"] ?? "").trim();
-      if (!query) return devSearchScreen();
+      if (!query) return devSearchScreen(base);
 
       const tokens = await searchTokens(query);
 
       return searchResultsScreen({
+        base,
         tokens,
         recipientFid: DEV_FID,
         recipientUsername: DEV_USERNAME,
@@ -91,60 +93,51 @@ const snap: SnapFunction = async (ctx) => {
 
     // "Tip dev" shortcut button on home
     case "dev": {
-      return devSearchScreen();
+      return devSearchScreen(base);
     }
 
     // Token selected from results — show tip amount screen
     case "tip": {
       const state = extractTipState(url.searchParams);
-      if (!state) return homeScreen();
-      return tipAmountScreen(state);
+      if (!state) return homeScreen(base);
+      return tipAmountScreen(base, state);
     }
 
     // Custom amount submitted — validate and show confirm screen
     case "confirm": {
       const state = extractTipState(url.searchParams);
-      if (!state) return homeScreen();
+      if (!state) return homeScreen(base);
 
       const rawAmt = String(inputs["amt"] ?? "").trim();
 
       if (!isValidAmount(rawAmt)) {
         return confirmScreen({
+          base,
           state,
           amount: rawAmt || "?",
           errorMsg: "! Enter a valid positive number, e.g. 250",
         });
       }
 
-      return confirmScreen({ state, amount: formatAmount(rawAmt) });
+      return confirmScreen({ base, state, amount: formatAmount(rawAmt) });
     }
 
     // "I SENT IT!" button — show success screen with confetti
     case "success": {
       const state = extractTipState(url.searchParams);
       const amount = url.searchParams.get(P.AMOUNT) ?? "?";
-      if (!state) return homeScreen();
-      return successScreen(state, amount);
+      if (!state) return homeScreen(base);
+      return successScreen(base, state, amount);
     }
 
-    // Anything else — back to home
+    // Anything else (including "home") — show home
     default:
-      return homeScreen();
+      return homeScreen(base);
   }
 };
 
-const __dir = dirname(fileURLToPath(import.meta.url));
-const fontsDir = join(__dir, "../assets/fonts");
-
 const app = new Hono();
 
-registerSnapHandler(app, snap, {
-  og: {
-    fonts: [
-      { path: join(fontsDir, "inter-latin-400-normal.woff"), weight: 400 },
-      { path: join(fontsDir, "inter-latin-700-normal.woff"), weight: 700 },
-    ],
-  },
-});
+registerSnapHandler(app, snap);
 
 export default app;

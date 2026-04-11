@@ -1,7 +1,8 @@
 import type { SnapHandlerResult } from "@farcaster/snap";
 import { coinSprite } from "../assets/sprites.js";
+import { stepTarget } from "../lib/params.js";
 
-export function homeScreen(): SnapHandlerResult {
+export function homeScreen(base: string): SnapHandlerResult {
   return {
     version: "2.0",
     theme: { accent: "green" },
@@ -11,7 +12,7 @@ export function homeScreen(): SnapHandlerResult {
         page: {
           type: "stack",
           props: { direction: "vertical", gap: "md" },
-          children: ["title", "coin", "inputs", "search_btn", "devtip_row"],
+          children: ["title", "coin", "recipient_input", "token_input", "search_btn", "devtip_row"],
         },
         title: {
           type: "text",
@@ -22,11 +23,6 @@ export function homeScreen(): SnapHandlerResult {
           },
         },
         coin: coinSprite(),
-        inputs: {
-          type: "stack",
-          props: { direction: "vertical", gap: "sm" },
-          children: ["recipient_input", "token_input"],
-        },
         recipient_input: {
           type: "input",
           props: {
@@ -49,7 +45,10 @@ export function homeScreen(): SnapHandlerResult {
           type: "button",
           props: { label: "SEARCH >", variant: "primary" },
           on: {
-            press: { action: "submit", params: { target: "/?step=search" } },
+            press: {
+              action: "submit",
+              params: { target: stepTarget(base, "search") },
+            },
           },
         },
         devtip_row: {
@@ -61,7 +60,10 @@ export function homeScreen(): SnapHandlerResult {
           type: "button",
           props: { label: "[ tip dev ]", variant: "secondary" },
           on: {
-            press: { action: "submit", params: { target: "/?step=dev" } },
+            press: {
+              action: "submit",
+              params: { target: stepTarget(base, "dev") },
+            },
           },
         },
       },

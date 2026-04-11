@@ -12,7 +12,23 @@
       "WebFetch(domain:www.clanker.world)",
       "WebFetch(domain:clanker.gitbook.io)",
       "WebFetch(domain:miniapps.farcaster.xyz)",
-      "Bash(gh api:*)"
+      "Bash(gh api:*)",
+      "Bash(chmod +x /media/boilerrat/Bobby/farcaster-snaps/snaps/clanker-tips/package-for-host-neynar.sh)",
+      "Bash(SKIP_JFS_VERIFICATION=true pnpm dev)",
+      "Bash(curl -sS -H 'Accept: application/vnd.farcaster.snap+json' http://localhost:3003/)",
+      "Bash(python3 -m json.tool)",
+      "Bash(fuser -k 3003/tcp)",
+      "Bash(curl -sS -X POST -H 'Accept: application/vnd.farcaster.snap+json' -H 'Content-Type: application/json' -d '{\"action\":{\"type\":\"post\",\"inputs\":{\"r\":\"boiler\",\"q\":\"degen\"}}}' 'http://localhost:3003/?step=search')",
+      "Read(//tmp/**)",
+      "Bash(tar tf:*)",
+      "WebFetch(domain:host.neynar.app)",
+      "Bash(curl -fsSL https://host.neynar.app/SKILL.md)",
+      "Bash(bash package-for-host-neynar.sh /tmp/clanker-tips.tar.gz)",
+      "Bash(curl -s -X POST https://api.host.neynar.app/v1/deploy -F files=@/tmp/clanker-tips.tar.gz -F projectName=clanker-tips -F framework=hono -F 'env={\"SNAP_PUBLIC_BASE_URL\":\"https://clanker-tips.host.neynar.app\"}' -F 'description=Initial deploy: clanker-tips snap v0.1')",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('version:', d['version']\\); print\\('root:', d['ui']['root']\\); print\\('elements:', list\\(d['ui']['elements'].keys\\(\\)\\)\\)\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); p=d['project']; print\\('url:', p['currentUrl']\\); print\\('version:', p.get\\('currentVersion'\\)\\)\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('OK — version:', d['version'], '| root:', d['ui']['root']\\)\")",
+      "Bash(python3 -c ':*)"
     ]
   },
   "disabledMcpServers": [

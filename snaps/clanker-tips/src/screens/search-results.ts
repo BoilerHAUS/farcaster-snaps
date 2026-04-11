@@ -1,9 +1,10 @@
 import type { SnapHandlerResult, SnapElementInput } from "@farcaster/snap";
 import type { ClankerToken } from "../lib/clanker.js";
 import { formatMarketCap } from "../lib/format.js";
-import { buildTarget } from "../lib/params.js";
+import { buildTarget, stepTarget } from "../lib/params.js";
 
 type ResultsOpts = {
+  base: string;
   tokens: ClankerToken[];
   recipientFid: number;
   recipientUsername: string;
@@ -12,7 +13,7 @@ type ResultsOpts = {
 };
 
 export function searchResultsScreen(opts: ResultsOpts): SnapHandlerResult {
-  const { tokens, recipientFid, recipientUsername, query, backStep } = opts;
+  const { base, tokens, recipientFid, recipientUsername, query, backStep } = opts;
 
   const recipientLabel =
     recipientUsername && !recipientUsername.match(/^\d+$/)
@@ -58,7 +59,7 @@ export function searchResultsScreen(opts: ResultsOpts): SnapHandlerResult {
       const mcap = token.related.market?.market_cap ?? token.starting_market_cap;
       const warnFlag = token.warnings.length > 0 ? " !" : "";
 
-      const target = buildTarget("tip", {
+      const target = buildTarget(base, "tip", {
         fid: recipientFid,
         username: recipientUsername,
         addr: token.contract_address,
@@ -102,7 +103,7 @@ export function searchResultsScreen(opts: ResultsOpts): SnapHandlerResult {
     on: {
       press: {
         action: "submit",
-        params: { target: `/?step=${backStep}` },
+        params: { target: stepTarget(base, backStep) },
       },
     },
   };
