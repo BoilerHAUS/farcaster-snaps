@@ -5,8 +5,8 @@ export type ClankerUser = {
 };
 
 export type ClankerMarket = {
-  price: number;
-  market_cap: number;
+  priceUsd: number;
+  marketCap: number;
 };
 
 export type ClankerToken = {
@@ -17,7 +17,6 @@ export type ClankerToken = {
   chain_id: number;
   deployed_at: string;
   pool_address: string;
-  starting_market_cap: number;
   warnings: string[];
   related: {
     user?: ClankerUser;
@@ -32,8 +31,11 @@ export async function searchTokens(
   query: string,
   limit = 6
 ): Promise<ClankerToken[]> {
+  // Strip leading $ so "$DEGEN" searches the same as "DEGEN"
+  const q = query.startsWith("$") ? query.slice(1) : query;
+
   const params = new URLSearchParams({
-    q: query,
+    q,
     chainId: "8453",
     includeMarket: "true",
     limit: String(limit),
@@ -54,10 +56,10 @@ export async function searchTokens(
 
     if (!res.ok) return [];
 
-    const data = (await res.json()) as { tokens?: unknown[] };
-    if (!Array.isArray(data.tokens)) return [];
+    const data = (await res.json()) as { data?: unknown[] };
+    if (!Array.isArray(data.data)) return [];
 
-    return data.tokens as ClankerToken[];
+    return data.data as ClankerToken[];
   } catch {
     return [];
   }

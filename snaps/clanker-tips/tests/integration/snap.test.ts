@@ -27,11 +27,9 @@ const mockToken = {
   chain_id: 8453,
   deployed_at: "2024-01-01T00:00:00Z",
   pool_address: "0xpool",
-  starting_market_cap: 50000,
   warnings: [],
   related: {
-    user: { fid: 999, username: "alice", display_name: "Alice" },
-    market: { price: 0.001, market_cap: 500000 },
+    market: { priceUsd: 0.001, marketCap: 500000 },
   },
 };
 

@@ -56,7 +56,7 @@ export function searchResultsScreen(opts: ResultsOpts): SnapHandlerResult {
     slice.forEach((token, i) => {
       const itemKey = `token_item_${i}`;
       const btnKey = `token_btn_${i}`;
-      const mcap = token.related.market?.market_cap ?? token.starting_market_cap;
+      const mcap = token.related.market?.marketCap ?? null;
       const warnFlag = token.warnings.length > 0 ? " !" : "";
 
       const target = buildTarget(base, "tip", {

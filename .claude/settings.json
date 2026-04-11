@@ -28,7 +28,24 @@
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('version:', d['version']\\); print\\('root:', d['ui']['root']\\); print\\('elements:', list\\(d['ui']['elements'].keys\\(\\)\\)\\)\")",
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); p=d['project']; print\\('url:', p['currentUrl']\\); print\\('version:', p.get\\('currentVersion'\\)\\)\")",
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('OK — version:', d['version'], '| root:', d['ui']['root']\\)\")",
-      "Bash(python3 -c ':*)"
+      "Bash(python3 -c ':*)",
+      "Bash(curl -s \"https://www.clanker.world/api/tokens?q=%24BNKR&chainId=8453&includeMarket=true&limit=6\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('count:', len\\(d.get\\('data',d\\) if isinstance\\(d,dict\\) else d\\)\\); print\\(json.dumps\\(d, indent=2\\)[:500]\\)\" echo \"\" echo \"=== BNKR \\(no \\\\$\\) ===\" curl -s \"https://www.clanker.world/api/tokens?q=BNKR&chainId=8453&includeMarket=true&limit=6\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('count:', len\\(d.get\\('data',d\\) if isinstance\\(d,dict\\) else d\\)\\); print\\(json.dumps\\(d, indent=2\\)[:500]\\)\")",
+      "Bash(curl -s \"https://hub-api.neynar.com/v1/userNameProofByName?name=boilerrat\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d, indent=2\\)[:300]\\)\")",
+      "Bash(curl -s \"https://hub-api.neynar.com/v1/userNameProofByName?name=boiler\")",
+      "Bash(curl -s \"https://hub.farcaster.xyz/v1/userNameProofByName?name=boiler\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d, indent=2\\)[:300]\\)\" echo \"\" echo \"=== pinata hub ===\" curl -s \"https://hub.pinata.cloud/v1/userNameProofByName?name=boiler\")",
+      "Bash(curl -sv \"https://hoyt.farcaster.xyz:2281/v1/userNameProofByName?name=boiler\")",
+      "Bash(curl -s \"https://api.warpcast.com/v2/user-by-username?username=boiler\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d, indent=2\\)[:400]\\)\")",
+      "Bash(curl -s \"https://api.warpcast.com/v2/user-by-username?username=definitelynotarealuser99999\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d, indent=2\\)\\)\")",
+      "Bash(curl -s \"https://api.warpcast.com/v2/user-by-username?username=notarealuser12345\")",
+      "Bash(curl -s -w \"\\\\nHTTP %{http_code}\" \"https://api.warpcast.com/v2/user-by-username?username=notarealuser1234\")",
+      "Bash(curl -s \"https://www.clanker.world/api/tokens?q=BNKR&chainId=8453&includeMarket=true&limit=3\")",
+      "Bash(curl -s \"https://www.clanker.world/api/tokens?q=BNKR&chainId=8453&includeMarket=true&limit=1\")"
     ]
   },
   "disabledMcpServers": [

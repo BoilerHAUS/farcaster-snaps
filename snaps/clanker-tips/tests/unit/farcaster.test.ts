@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { resolveRecipient } from "../../src/lib/farcaster.js";
 
+const mockWarpcastResponse = (fid: number, username: string) =>
+  new Response(
+    JSON.stringify({ result: { user: { fid, username } } }),
+    { status: 200 }
+  );
+
 describe("resolveRecipient", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn());
@@ -17,13 +23,8 @@ describe("resolveRecipient", () => {
     expect(result).toEqual({ fid: 14217, username: "14217" });
   });
 
-  it("resolves a username via the Hub API", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({ fid: 12345, name: "alice", owner: "0x..." }),
-        { status: 200 }
-      )
-    );
+  it("resolves a username via the Warpcast API", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(mockWarpcastResponse(12345, "alice"));
 
     const result = await resolveRecipient("alice");
 
@@ -31,25 +32,29 @@ describe("resolveRecipient", () => {
   });
 
   it("strips leading @ from username before resolving", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({ fid: 12345, name: "alice", owner: "0x..." }),
-        { status: 200 }
-      )
-    );
+    vi.mocked(fetch).mockResolvedValueOnce(mockWarpcastResponse(12345, "alice"));
 
     const result = await resolveRecipient("@alice");
 
     expect(result).toEqual({ fid: 12345, username: "alice" });
 
     const calledUrl = vi.mocked(fetch).mock.calls[0]?.[0] as string;
-    expect(calledUrl).toContain("name=alice");
-    expect(calledUrl).not.toContain("name=%40alice");
+    expect(calledUrl).toContain("username=alice");
+    expect(calledUrl).not.toContain("username=%40alice");
+  });
+
+  it("calls the Warpcast API endpoint", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(mockWarpcastResponse(12345, "alice"));
+
+    await resolveRecipient("alice");
+
+    const calledUrl = vi.mocked(fetch).mock.calls[0]?.[0] as string;
+    expect(calledUrl).toContain("api.warpcast.com/v2/user-by-username");
   });
 
   it("returns null when user is not found (404)", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify({ message: "not found" }), { status: 404 })
+      new Response(JSON.stringify({ errors: [{ message: "No FID associated with username nobody" }] }), { status: 404 })
     );
 
     const result = await resolveRecipient("nobody");
@@ -65,7 +70,7 @@ describe("resolveRecipient", () => {
 
   it("returns null when fid is missing from response", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify({ name: "alice" }), { status: 200 })
+      new Response(JSON.stringify({ result: { user: {} } }), { status: 200 })
     );
 
     const result = await resolveRecipient("alice");
@@ -74,12 +79,7 @@ describe("resolveRecipient", () => {
 
   it("handles numeric string that looks like a username (zero-padded)", async () => {
     // "007" is not a valid FID (leading zero) — treat as username
-    vi.mocked(fetch).mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({ fid: 7, name: "007", owner: "0x..." }),
-        { status: 200 }
-      )
-    );
+    vi.mocked(fetch).mockResolvedValueOnce(mockWarpcastResponse(7, "007"));
 
     const result = await resolveRecipient("007");
     expect(result?.fid).toBe(7);

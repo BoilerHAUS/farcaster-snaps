@@ -3,7 +3,7 @@ export type ResolvedRecipient = {
   username: string;
 };
 
-const HUB_API = "https://hub-api.neynar.com/v1";
+const WARPCAST_API = "https://api.warpcast.com/v2";
 const FETCH_TIMEOUT_MS = 3_000;
 
 export async function resolveRecipient(
@@ -24,7 +24,7 @@ export async function resolveRecipient(
     const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
     const res = await fetch(
-      `${HUB_API}/userNameProofByName?name=${encodeURIComponent(username)}`,
+      `${WARPCAST_API}/user-by-username?username=${encodeURIComponent(username)}`,
       { signal: controller.signal }
     );
 
@@ -32,10 +32,12 @@ export async function resolveRecipient(
 
     if (!res.ok) return null;
 
-    const data = (await res.json()) as { fid?: unknown; name?: unknown };
-    if (typeof data.fid !== "number") return null;
+    const data = (await res.json()) as { result?: { user?: { fid?: unknown; username?: unknown } } };
+    const fid = data.result?.user?.fid;
+    const resolvedUsername = data.result?.user?.username;
+    if (typeof fid !== "number") return null;
 
-    return { fid: data.fid, username: username };
+    return { fid, username: typeof resolvedUsername === "string" ? resolvedUsername : username };
   } catch {
     return null;
   }
