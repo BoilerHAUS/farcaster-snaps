@@ -45,7 +45,8 @@
       "Bash(curl -s \"https://api.warpcast.com/v2/user-by-username?username=notarealuser12345\")",
       "Bash(curl -s -w \"\\\\nHTTP %{http_code}\" \"https://api.warpcast.com/v2/user-by-username?username=notarealuser1234\")",
       "Bash(curl -s \"https://www.clanker.world/api/tokens?q=BNKR&chainId=8453&includeMarket=true&limit=3\")",
-      "Bash(curl -s \"https://www.clanker.world/api/tokens?q=BNKR&chainId=8453&includeMarket=true&limit=1\")"
+      "Bash(curl -s \"https://www.clanker.world/api/tokens?q=BNKR&chainId=8453&includeMarket=true&limit=1\")",
+      "Bash(bash -c 'bash package-for-host-neynar.sh /tmp/test-deploy.tar.gz && source .agentdeploy && echo \"apiKey present: $\\([ -n \"$apiKey\" ] && echo yes || echo NO\\)\"')"
     ]
   },
   "disabledMcpServers": [
