@@ -46,7 +46,25 @@
       "Bash(curl -s -w \"\\\\nHTTP %{http_code}\" \"https://api.warpcast.com/v2/user-by-username?username=notarealuser1234\")",
       "Bash(curl -s \"https://www.clanker.world/api/tokens?q=BNKR&chainId=8453&includeMarket=true&limit=3\")",
       "Bash(curl -s \"https://www.clanker.world/api/tokens?q=BNKR&chainId=8453&includeMarket=true&limit=1\")",
-      "Bash(bash -c 'bash package-for-host-neynar.sh /tmp/test-deploy.tar.gz && source .agentdeploy && echo \"apiKey present: $\\([ -n \"$apiKey\" ] && echo yes || echo NO\\)\"')"
+      "Bash(bash -c 'bash package-for-host-neynar.sh /tmp/test-deploy.tar.gz && source .agentdeploy && echo \"apiKey present: $\\([ -n \"$apiKey\" ] && echo yes || echo NO\\)\"')",
+      "WebFetch(domain:hypersnap-docs.qstorage.quilibrium.com)",
+      "WebFetch(domain:haatz.quilibrium.com)",
+      "Bash(curl -sS \"https://haatz.quilibrium.com/\")",
+      "Bash(curl -sS \"https://haatz.quilibrium.com/v1/info\")",
+      "Bash(curl -sS \"https://haatz.quilibrium.com/api\")",
+      "Bash(curl -sS \"https://haatz.quilibrium.com/health\")",
+      "Bash(curl -sS \"https://haatz.quilibrium.com/v1/castsByFid?fid=14217&pageSize=2\")",
+      "Bash(curl -sS \"https://haatz.quilibrium.com/v1/userDataByFid?fid=14217\")",
+      "Bash(curl -sS \"https://haatz.quilibrium.com/v1/reactionsByFid?fid=14217&pageSize=2\")",
+      "Bash(curl -sS \"https://haatz.quilibrium.com/v1/linksByFid?fid=14217&pageSize=2\")",
+      "Bash(curl -sS \"https://haatz.quilibrium.com/v1/castById?fid=14217&hash=0x395c9738fc3295ff4fcb36cc710a91bac02bb40e\")",
+      "Bash(curl -sS \"https://haatz.quilibrium.com/v1/verificationsByFid?fid=14217\")",
+      "Bash(curl -sS \"https://haatz.quilibrium.com/v1/fids?pageSize=3\")",
+      "Bash(curl -sS \"https://haatz.quilibrium.com/v2/userDataByFid?fid=14217\")",
+      "Bash(curl -sS \"https://haatz.quilibrium.com/v2/\")",
+      "Bash(curl -sS -I \"https://haatz.quilibrium.com/v1/castsByFid?fid=14217&pageSize=1\")",
+      "Read(//home/boilerrat/.claude/skills/farcaster-snap/**)",
+      "Edit(~/.claude/skills/farcaster-snap/**)"
     ]
   },
   "disabledMcpServers": [

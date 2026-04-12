@@ -32,6 +32,47 @@ plankton-code-quality, verification-loop, project-guidelines-example, find-skill
 - `code-reviewer` — after writing snap code
 - `typescript-reviewer` — TypeScript-specific review
 
+## Shared Packages
+
+```
+packages/hub/   — @farcaster-snaps/hub: free Hub v1 API client (no auth)
+```
+
+### @farcaster-snaps/hub
+
+Primary data source for any FID-keyed Farcaster lookups. No API key needed.
+Public node: `https://haatz.quilibrium.com`
+
+**Use this for:**
+- User profiles (username, displayName, pfpUrl, bio) → `getUserProfile(fid)`
+- Verified wallet addresses (ETH + SOL) → `getWalletAddresses(fid)`
+- Fetching casts → `getCasts(fid, limit?)`, `getCast(fid, hash)`
+
+**Do NOT use for:**
+- Username → FID resolution — Hub only knows FIDs; use `api.warpcast.com/v2/user-by-username`
+- Text search, trending, or engagement counts — use Neynar only when these are required
+
+**Setup for a new snap:**
+
+1. Add to `package.json` dependencies:
+   ```json
+   "@farcaster-snaps/hub": "workspace:*"
+   ```
+
+2. Add to `tsconfig.json` `compilerOptions`:
+   ```json
+   "paths": {
+     "@farcaster-snaps/hub": ["../../packages/hub/src/index.ts"]
+   }
+   ```
+
+3. Import:
+   ```typescript
+   import { getUserProfile, getWalletAddresses } from "@farcaster-snaps/hub";
+   ```
+
+All functions return `null` or empty arrays on failure — never throw.
+
 ## Snap Structure (per snap)
 
 ```

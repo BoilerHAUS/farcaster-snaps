@@ -8,8 +8,23 @@ importers:
 
   .: {}
 
+  packages/hub:
+    devDependencies:
+      '@types/node':
+        specifier: ^24.5.2
+        version: 24.12.2
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@24.12.2)
+
   snaps/clanker-tips:
     dependencies:
+      '@farcaster-snaps/hub':
+        specifier: workspace:*
+        version: link:../../packages/hub
       '@farcaster/snap':
         specifier: ^1.20.0
         version: 1.22.1(typescript@5.9.3)(zod@4.3.6)

@@ -10,7 +10,10 @@
     "rootDir": ".",
     "resolveJsonModule": true,
     "noEmit": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "paths": {
+      "@farcaster-snaps/hub": ["../../packages/hub/src/index.ts"]
+    }
   },
   "include": ["src/**/*", "tests/**/*"],
   "exclude": ["node_modules"]

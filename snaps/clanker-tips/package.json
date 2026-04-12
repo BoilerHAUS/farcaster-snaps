@@ -13,6 +13,7 @@
     "deploy": "bash -c 'bash package-for-host-neynar.sh /tmp/clanker-tips.tar.gz && source .agentdeploy && curl -X POST https://api.host.neynar.app/v1/deploy -F files=@/tmp/clanker-tips.tar.gz -F projectName=clanker-tips -F framework=hono -H \"Authorization: Bearer ${apiKey}\"'"
   },
   "dependencies": {
+    "@farcaster-snaps/hub": "workspace:*",
     "@farcaster/snap": "^1.20.0",
     "@farcaster/snap-hono": "^1.5.9",
     "@farcaster/snap-turso": "^1.0.18",
