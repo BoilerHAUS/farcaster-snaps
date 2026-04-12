@@ -11,7 +11,7 @@ export function homeScreen(base: string): SnapHandlerResult {
       elements: {
         page: {
           type: "stack",
-          props: { direction: "vertical", gap: "md" },
+          props: { direction: "vertical", gap: "sm" },
           children: ["title", "coin", "recipient_input", "token_input", "search_btn", "devtip_row"],
         },
         title: {

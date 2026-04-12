@@ -10,7 +10,7 @@ export function coinSprite(): SnapElementInput {
     props: {
       cols: 8,
       rows: 5,
-      rowHeight: 20,
+      rowHeight: 12,
       gap: "none",
       cells: [
         // Row 0: top arc
