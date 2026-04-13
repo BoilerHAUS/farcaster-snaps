@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { createInMemoryDataStore } from "@farcaster/snap-turso";
 import {
   parseGridTap,
   isValidColor,
@@ -7,6 +8,11 @@ import {
   paintedCount,
   cooldownRemainingMs,
   formatCooldown,
+  formatTimestamp,
+  saveSnapshot,
+  loadGalleryCount,
+  loadGalleryEntry,
+  MAX_GALLERY,
   COLS,
   ROWS,
   COOLDOWN_MS,
@@ -84,10 +90,25 @@ describe("paintCells", () => {
     expect(result).toEqual({ "0,0": "red", "1,1": "blue" });
   });
 
-  it("overwrites an existing cell color", () => {
+  it("does not overwrite an already-painted cell", () => {
     const canvas = { "0,0": "red" as const };
     const result = paintCells(canvas, [{ row: 0, col: 0 }], "green");
-    expect(result["0,0"]).toBe("green");
+    expect(result["0,0"]).toBe("red"); // color preserved
+    expect(result).toBe(canvas); // same reference — nothing changed
+  });
+
+  it("returns original reference when all selected cells are already painted", () => {
+    const canvas = { "0,0": "red" as const, "1,1": "blue" as const };
+    const result = paintCells(canvas, [{ row: 0, col: 0 }, { row: 1, col: 1 }], "green");
+    expect(result).toBe(canvas);
+  });
+
+  it("paints empty cells but skips already-painted ones in a mixed selection", () => {
+    const canvas = { "0,0": "red" as const };
+    const result = paintCells(canvas, [{ row: 0, col: 0 }, { row: 1, col: 1 }], "green");
+    expect(result["0,0"]).toBe("red"); // preserved
+    expect(result["1,1"]).toBe("green"); // painted
+    expect(result).not.toBe(canvas); // new reference — something changed
   });
 
   it("paints multiple cells at once", () => {
@@ -170,5 +191,84 @@ describe("formatCooldown", () => {
   it("rounds up partial seconds", () => {
     expect(formatCooldown(1_500)).toBe("2s");
     expect(formatCooldown(61_001)).toBe("1m 2s"); // 62 seconds → 1m 2s
+  });
+});
+
+describe("formatTimestamp", () => {
+  it("formats a known UTC timestamp correctly", () => {
+    // 2026-04-12 20:45:00 UTC
+    const ms = Date.UTC(2026, 3, 12, 20, 45, 0); // month is 0-indexed
+    expect(formatTimestamp(ms)).toBe("Apr 12, 2026 20:45 UTC");
+  });
+
+  it("zero-pads hours and minutes", () => {
+    const ms = Date.UTC(2026, 0, 5, 9, 3, 0); // Jan 5 09:03
+    expect(formatTimestamp(ms)).toBe("Jan 5, 2026 09:03 UTC");
+  });
+});
+
+describe("gallery storage", () => {
+  it("loadGalleryCount returns 0 on empty store", async () => {
+    const store = createInMemoryDataStore();
+    expect(await loadGalleryCount(store)).toBe(0);
+  });
+
+  it("saveSnapshot increments count and stores entry", async () => {
+    const store = createInMemoryDataStore();
+    const canvas = { "0,0": "red" as const };
+    await saveSnapshot(store, canvas, 12345);
+    expect(await loadGalleryCount(store)).toBe(1);
+  });
+
+  it("loadGalleryEntry returns null when no snapshots exist", async () => {
+    const store = createInMemoryDataStore();
+    expect(await loadGalleryEntry(store, 0, 0)).toBeNull();
+  });
+
+  it("loadGalleryEntry returns the most recent snapshot at page 0", async () => {
+    const store = createInMemoryDataStore();
+    const canvas1 = { "0,0": "red" as const };
+    const canvas2 = { "1,1": "blue" as const };
+    await saveSnapshot(store, canvas1, 111);
+    await saveSnapshot(store, canvas2, 222);
+    const count = await loadGalleryCount(store);
+    const entry = await loadGalleryEntry(store, count, 0);
+    expect(entry).not.toBeNull();
+    expect(entry!.canvas).toEqual(canvas2);
+    expect(entry!.clearedBy).toBe(222);
+  });
+
+  it("loadGalleryEntry returns older snapshot at page 1", async () => {
+    const store = createInMemoryDataStore();
+    const canvas1 = { "0,0": "red" as const };
+    const canvas2 = { "1,1": "blue" as const };
+    await saveSnapshot(store, canvas1, 111);
+    await saveSnapshot(store, canvas2, 222);
+    const count = await loadGalleryCount(store);
+    const entry = await loadGalleryEntry(store, count, 1);
+    expect(entry).not.toBeNull();
+    expect(entry!.canvas).toEqual(canvas1);
+    expect(entry!.clearedBy).toBe(111);
+  });
+
+  it("loadGalleryEntry returns null for out-of-range page", async () => {
+    const store = createInMemoryDataStore();
+    await saveSnapshot(store, {}, 1);
+    const count = await loadGalleryCount(store);
+    expect(await loadGalleryEntry(store, count, 1)).toBeNull(); // only 1 entry, page 1 OOB
+  });
+
+  it("ring buffer evicts oldest entry after MAX_GALLERY snapshots", async () => {
+    const store = createInMemoryDataStore();
+    for (let i = 0; i < MAX_GALLERY + 1; i++) {
+      await saveSnapshot(store, { [`${i},0`]: "red" as const }, i);
+    }
+    const count = await loadGalleryCount(store);
+    expect(count).toBe(MAX_GALLERY + 1);
+    // Only MAX_GALLERY entries are accessible
+    const oldest = await loadGalleryEntry(store, count, MAX_GALLERY - 1);
+    expect(oldest).not.toBeNull();
+    // Entry at MAX_GALLERY (11th oldest) is gone
+    expect(await loadGalleryEntry(store, count, MAX_GALLERY)).toBeNull();
   });
 });

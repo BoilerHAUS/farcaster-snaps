@@ -11,7 +11,9 @@ import {
   ROWS,
   TOTAL_CELLS,
   PAINT_LIMIT,
+  MAX_GALLERY,
   type PaletteColor,
+  type GalleryEntry,
   parseGridTap,
   isValidColor,
   paintCells,
@@ -19,41 +21,76 @@ import {
   paintedCount,
   cooldownRemainingMs,
   formatCooldown,
+  formatTimestamp,
   loadCanvas,
   saveCanvas,
   loadUserColor,
   saveUserColor,
   loadUserLastPaint,
   saveUserLastPaint,
+  saveSnapshot,
+  loadGalleryCount,
+  loadGalleryEntry,
 } from "./lib/canvas.js";
 
 const store = createTursoDataStore();
 
 const app = new Hono();
 
+const OWNER_FID = 14217; // boilerrat — can clear canvas at any time for moderation
+
 const RULES =
-  `3 cells/turn  \u00b7  5 min cooldown  \u00b7  SFW only  \u00b7  clear unlocks at 128`;
+  `3 cells/turn  \u00b7  5 min cooldown  \u00b7  no overpainting  \u00b7  SFW only`;
 
 const snap: SnapFunction = async (ctx): Promise<SnapHandlerResult> => {
   const base = snapBase(ctx.request);
   const url = new URL(ctx.request.url);
   const action = url.searchParams.get("action");
 
-  // ── GET: initial load ────────────────────────────────────────────────────
+  // ── Gallery view — handles both GET (shared link) and POST (navigation) ────
+  if (action === ACTION.GALLERY) {
+    const page = Math.max(0, parseInt(url.searchParams.get("page") ?? "0", 10) || 0);
+    const count = await loadGalleryCount(store);
+    if (count === 0) {
+      const canvas = await loadCanvas(store);
+      return renderCanvas(base, canvas, DEFAULT_COLOR, "No completed canvases yet");
+    }
+    const maxPage = Math.min(count, MAX_GALLERY) - 1;
+    const safePage = Math.min(page, maxPage);
+    const entry = await loadGalleryEntry(store, count, safePage);
+    if (!entry) {
+      const canvas = await loadCanvas(store);
+      return renderCanvas(base, canvas, DEFAULT_COLOR, "Gallery entry not found");
+    }
+    return renderGallery(base, entry, safePage, count);
+  }
+
+  // ── GET: initial canvas load ──────────────────────────────────────────────
   if (ctx.action.type === "get") {
     const canvas = await loadCanvas(store);
     return renderCanvas(base, canvas, DEFAULT_COLOR);
   }
 
-  // ── POST: all submit actions ─────────────────────────────────────────────
+  // ── POST actions ──────────────────────────────────────────────────────────
   const { user, inputs } = ctx.action;
   const fid = user.fid;
+
+  // Return to main canvas without painting (from gallery back button)
+  if (action === ACTION.VIEW) {
+    const [canvas, color] = await Promise.all([
+      loadCanvas(store),
+      loadUserColor(store, fid),
+    ]);
+    return renderCanvas(base, canvas, color);
+  }
+
   const canvas = await loadCanvas(store);
 
-  // Rule: clear only when canvas is completely full
+  // Rule: clear only when canvas is completely full (owner can always clear)
   if (action === ACTION.CLEAR) {
+    const isOwner = fid === OWNER_FID;
     const count = paintedCount(canvas);
-    if (count < TOTAL_CELLS) {
+    if (!isOwner && count < TOTAL_CELLS) {
       return renderCanvas(
         base,
         canvas,
@@ -61,8 +98,9 @@ const snap: SnapFunction = async (ctx): Promise<SnapHandlerResult> => {
         `Canvas must be full to clear (${count} / ${TOTAL_CELLS} painted)`,
       );
     }
+    await saveSnapshot(store, canvas, fid);
     await saveCanvas(store, {});
-    return renderCanvas(base, {}, DEFAULT_COLOR);
+    return renderCanvas(base, {}, DEFAULT_COLOR, isOwner ? "Canvas cleared by moderator" : undefined);
   }
 
   // Default: paint
@@ -92,15 +130,26 @@ const snap: SnapFunction = async (ctx): Promise<SnapHandlerResult> => {
   const truncated = tappedCells.length > PAINT_LIMIT;
 
   const updated = paintCells(canvas, limited, color);
+
+  // Rule: no overpainting — if every selected cell was already taken, skip cooldown
+  if (updated === canvas) {
+    await saveUserColor(store, fid, color);
+    return renderCanvas(base, canvas, color, "Those cells are already painted — pick empty ones");
+  }
+
   await Promise.all([
     saveCanvas(store, updated),
     saveUserColor(store, fid, color),
     saveUserLastPaint(store, fid),
   ]);
 
-  const msg = truncated
-    ? `Painted ${PAINT_LIMIT} cells (max per turn)`
-    : undefined;
+  const paintedNow = paintedCount(updated) - paintedCount(canvas);
+  let msg: string | undefined;
+  if (truncated) {
+    msg = `Painted ${PAINT_LIMIT} cells (max per turn)`;
+  } else if (paintedNow < limited.length) {
+    msg = `Painted ${paintedNow} cell${paintedNow !== 1 ? "s" : ""} (some already taken)`;
+  }
 
   return renderCanvas(base, updated, color, msg);
 };
@@ -164,7 +213,7 @@ function renderCanvas(
         btn_row: {
           type: "stack",
           props: { direction: "horizontal" },
-          children: ["paint_btn", "clear_btn", "share_btn"],
+          children: ["paint_btn", "clear_btn", "gallery_btn", "share_btn"],
         },
         paint_btn: {
           type: "button",
@@ -188,6 +237,16 @@ function renderCanvas(
             },
           },
         },
+        gallery_btn: {
+          type: "button",
+          props: { label: "Gallery" },
+          on: {
+            press: {
+              action: "submit",
+              params: { target: `${base}/?action=${ACTION.GALLERY}&page=0` },
+            },
+          },
+        },
         share_btn: {
           type: "button",
           props: { label: "Share", icon: "share" },
@@ -198,6 +257,110 @@ function renderCanvas(
                 text: "Come paint with me on this collaborative pixel canvas!",
                 embeds: [base],
               },
+            },
+          },
+        },
+      },
+    },
+  };
+}
+
+function renderGallery(
+  base: string,
+  entry: GalleryEntry,
+  displayPage: number,
+  totalCount: number,
+): SnapHandlerResult {
+  const cells = buildCellsArray(entry.canvas);
+  const available = Math.min(totalCount, MAX_GALLERY);
+  const canvasNumber = totalCount - displayPage; // most recent = highest number
+  const hasPrev = displayPage < available - 1; // older entries exist
+  const hasNext = displayPage > 0;             // newer entries exist
+
+  const galleryUrl = (p: number) => `${base}/?action=${ACTION.GALLERY}&page=${p}`;
+
+  // Build nav children dynamically so boundary buttons disappear cleanly
+  const navChildren: string[] = [];
+  if (hasPrev) navChildren.push("prev_btn");
+  navChildren.push("share_btn");
+  if (hasNext) navChildren.push("next_btn");
+
+  return {
+    version: "2.0",
+    theme: { accent: "teal" },
+    ui: {
+      root: "page",
+      elements: {
+        page: {
+          type: "stack",
+          props: {},
+          children: ["gallery_title", "timestamp_text", "canvas", "nav_row", "back_btn"],
+        },
+        gallery_title: {
+          type: "text",
+          props: { content: `Canvas #${canvasNumber}`, weight: "bold" },
+        },
+        timestamp_text: {
+          type: "text",
+          props: { content: `Completed ${formatTimestamp(entry.completedAt)}`, size: "sm" },
+        },
+        canvas: {
+          type: "cell_grid",
+          props: {
+            name: "grid_tap",
+            cols: COLS,
+            rows: ROWS,
+            cells,
+            gap: "sm",
+            rowHeight: 24,
+            select: "multiple",
+          },
+        },
+        nav_row: {
+          type: "stack",
+          props: { direction: "horizontal" },
+          children: navChildren,
+        },
+        prev_btn: {
+          type: "button",
+          props: { label: "Older" },
+          on: {
+            press: {
+              action: "submit",
+              params: { target: galleryUrl(displayPage + 1) },
+            },
+          },
+        },
+        share_btn: {
+          type: "button",
+          props: { label: "Share", icon: "share" },
+          on: {
+            press: {
+              action: "compose_cast",
+              params: {
+                text: `Check out Canvas #${canvasNumber} — a completed collaborative pixel art on Farcaster!`,
+                embeds: [galleryUrl(displayPage)],
+              },
+            },
+          },
+        },
+        next_btn: {
+          type: "button",
+          props: { label: "Newer" },
+          on: {
+            press: {
+              action: "submit",
+              params: { target: galleryUrl(displayPage - 1) },
+            },
+          },
+        },
+        back_btn: {
+          type: "button",
+          props: { label: "Back to Canvas" },
+          on: {
+            press: {
+              action: "submit",
+              params: { target: `${base}/?action=${ACTION.VIEW}` },
             },
           },
         },

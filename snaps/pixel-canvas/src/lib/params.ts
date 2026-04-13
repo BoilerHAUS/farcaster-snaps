@@ -22,8 +22,10 @@ export function snapBase(request: Request): string {
   return `http://localhost:${process.env.PORT ?? "3003"}`;
 }
 
-/** Action query param values used to route POST submissions. */
+/** Action query param values used to route GET and POST submissions. */
 export const ACTION = {
   PAINT: "paint",
   CLEAR: "clear",
+  GALLERY: "gallery", // view a completed canvas from the gallery
+  VIEW: "view",       // return to main canvas without painting
 } as const;

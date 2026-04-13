@@ -1,4 +1,4 @@
-import type { DataStore } from "@farcaster/snap-turso";
+import type { DataStore, DataStoreValue } from "@farcaster/snap-turso";
 
 export const PALETTE_COLORS = ["red", "amber", "green", "teal", "blue", "purple"] as const;
 export type PaletteColor = (typeof PALETTE_COLORS)[number];
@@ -40,6 +40,8 @@ export function isValidColor(value: unknown): value is PaletteColor {
 
 /**
  * Return a new canvas with the given cells painted in `color`.
+ * Skips cells that are already painted — no overpainting allowed.
+ * Returns the original canvas reference if nothing changed.
  * Never mutates the input.
  */
 export function paintCells(
@@ -48,8 +50,10 @@ export function paintCells(
   color: PaletteColor,
 ): CanvasState {
   if (cells.length === 0) return canvas;
+  const paintable = cells.filter(({ row, col }) => canvas[`${row},${col}`] === undefined);
+  if (paintable.length === 0) return canvas;
   const next = { ...canvas };
-  for (const { row, col } of cells) {
+  for (const { row, col } of paintable) {
     next[`${row},${col}`] = color;
   }
   return next;
@@ -116,4 +120,69 @@ export async function loadUserLastPaint(store: DataStore, fid: number): Promise<
 
 export async function saveUserLastPaint(store: DataStore, fid: number): Promise<void> {
   await store.set(`cooldown:${fid}`, Date.now());
+}
+
+// ── Gallery ───────────────────────────────────────────────────────────────────
+
+export const MAX_GALLERY = 10;
+
+export interface GalleryEntry {
+  canvas: CanvasState;
+  completedAt: number; // Unix ms
+  clearedBy: number;   // FID
+}
+
+/**
+ * Save a snapshot of the completed canvas to the gallery ring buffer.
+ * Oldest entry is evicted once MAX_GALLERY entries exist.
+ */
+export async function saveSnapshot(
+  store: DataStore,
+  canvas: CanvasState,
+  clearedBy: number,
+): Promise<void> {
+  const countRaw = await store.get("gallery:count");
+  const count = typeof countRaw === "number" ? countRaw : 0;
+  const entry: GalleryEntry = { canvas, completedAt: Date.now(), clearedBy };
+  await store.set(`gallery:${count % MAX_GALLERY}`, entry as unknown as DataStoreValue);
+  await store.set("gallery:count", count + 1);
+}
+
+/** Total number of completed canvases ever saved. */
+export async function loadGalleryCount(store: DataStore): Promise<number> {
+  const raw = await store.get("gallery:count");
+  return typeof raw === "number" ? raw : 0;
+}
+
+/**
+ * Load the Nth most recent completed canvas (0 = most recent).
+ * Pass `totalCount` from loadGalleryCount to avoid a second DB round-trip.
+ * Returns null if displayPage is out of range or data is invalid.
+ */
+export async function loadGalleryEntry(
+  store: DataStore,
+  totalCount: number,
+  displayPage: number,
+): Promise<GalleryEntry | null> {
+  const available = Math.min(totalCount, MAX_GALLERY);
+  if (totalCount === 0 || displayPage < 0 || displayPage >= available) return null;
+  const storeIdx = (totalCount - 1 - displayPage) % MAX_GALLERY;
+  const raw = await store.get(`gallery:${storeIdx}`);
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const e = raw as Record<string, unknown>;
+  if (typeof e.completedAt !== "number" || typeof e.clearedBy !== "number") return null;
+  return {
+    canvas: (e.canvas as CanvasState) ?? {},
+    completedAt: e.completedAt,
+    clearedBy: e.clearedBy,
+  };
+}
+
+/** Format a Unix ms timestamp as a human-readable UTC string, e.g. "Apr 12, 2026 20:45 UTC" */
+export function formatTimestamp(ms: number): string {
+  const d = new Date(ms);
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const hh = String(d.getUTCHours()).padStart(2, "0");
+  const mm = String(d.getUTCMinutes()).padStart(2, "0");
+  return `${months[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()} ${hh}:${mm} UTC`;
 }
