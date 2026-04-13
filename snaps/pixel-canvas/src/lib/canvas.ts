@@ -7,6 +7,8 @@ export const DEFAULT_COLOR: PaletteColor = "red";
 export const COLS = 16;
 export const ROWS = 8;
 export const TOTAL_CELLS = COLS * ROWS; // 128
+export const PAINT_LIMIT = 3; // max cells per turn
+export const COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
 
 const CANVAS_KEY = "canvas";
 
@@ -92,4 +94,26 @@ export async function saveUserColor(
   color: PaletteColor,
 ): Promise<void> {
   await store.set(`user:${fid}:color`, color);
+}
+
+/** Returns ms remaining in cooldown, or 0 if the cooldown has expired. */
+export function cooldownRemainingMs(lastPaintMs: number): number {
+  return Math.max(0, COOLDOWN_MS - (Date.now() - lastPaintMs));
+}
+
+/** Format a cooldown duration in ms as a human-readable string, e.g. "4m 32s". */
+export function formatCooldown(ms: number): string {
+  const totalSecs = Math.ceil(ms / 1000);
+  const mins = Math.floor(totalSecs / 60);
+  const secs = totalSecs % 60;
+  return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+}
+
+export async function loadUserLastPaint(store: DataStore, fid: number): Promise<number> {
+  const raw = await store.get(`cooldown:${fid}`);
+  return typeof raw === "number" ? raw : 0;
+}
+
+export async function saveUserLastPaint(store: DataStore, fid: number): Promise<void> {
+  await store.set(`cooldown:${fid}`, Date.now());
 }

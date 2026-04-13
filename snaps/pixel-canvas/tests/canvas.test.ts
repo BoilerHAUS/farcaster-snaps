@@ -5,8 +5,11 @@ import {
   paintCells,
   buildCellsArray,
   paintedCount,
+  cooldownRemainingMs,
+  formatCooldown,
   COLS,
   ROWS,
+  COOLDOWN_MS,
 } from "../src/lib/canvas.js";
 
 describe("parseGridTap", () => {
@@ -124,5 +127,48 @@ describe("paintedCount", () => {
   it("counts painted cells correctly", () => {
     const canvas = { "0,0": "red" as const, "1,1": "blue" as const };
     expect(paintedCount(canvas)).toBe(2);
+  });
+});
+
+describe("cooldownRemainingMs", () => {
+  it("returns 0 when no paint has occurred (lastPaintMs = 0)", () => {
+    expect(cooldownRemainingMs(0)).toBe(0);
+  });
+
+  it("returns 0 when cooldown has fully expired", () => {
+    const expired = Date.now() - COOLDOWN_MS - 1000;
+    expect(cooldownRemainingMs(expired)).toBe(0);
+  });
+
+  it("returns positive ms when paint was recent", () => {
+    const justNow = Date.now();
+    const remaining = cooldownRemainingMs(justNow);
+    expect(remaining).toBeGreaterThan(0);
+    expect(remaining).toBeLessThanOrEqual(COOLDOWN_MS);
+  });
+
+  it("returns approximately correct remaining time at halfway point", () => {
+    const halfwayAgo = Date.now() - COOLDOWN_MS / 2;
+    const remaining = cooldownRemainingMs(halfwayAgo);
+    // Allow 100ms tolerance for test execution time
+    expect(remaining).toBeGreaterThan(COOLDOWN_MS / 2 - 100);
+    expect(remaining).toBeLessThanOrEqual(COOLDOWN_MS / 2);
+  });
+});
+
+describe("formatCooldown", () => {
+  it("formats sub-minute durations in seconds", () => {
+    expect(formatCooldown(30_000)).toBe("30s");
+    expect(formatCooldown(1_000)).toBe("1s");
+  });
+
+  it("formats durations over a minute with minutes and seconds", () => {
+    expect(formatCooldown(90_000)).toBe("1m 30s");
+    expect(formatCooldown(300_000)).toBe("5m 0s");
+  });
+
+  it("rounds up partial seconds", () => {
+    expect(formatCooldown(1_500)).toBe("2s");
+    expect(formatCooldown(61_001)).toBe("1m 2s"); // 62 seconds → 1m 2s
   });
 });
