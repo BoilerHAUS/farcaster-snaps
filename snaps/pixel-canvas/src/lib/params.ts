@@ -24,8 +24,11 @@ export function snapBase(request: Request): string {
 
 /** Action query param values used to route GET and POST submissions. */
 export const ACTION = {
-  PAINT: "paint",
-  CLEAR: "clear",
-  GALLERY: "gallery", // view a completed canvas from the gallery
-  VIEW: "view",       // return to main canvas without painting
+  STAGE: "stage",    // preview cells in chosen color — no cooldown
+  COMMIT: "commit",  // finalize staged cells, start cooldown
+  PAINT: "paint",    // legacy alias for commit (backward compat)
+  CANCEL: "cancel",  // clear own staged cells
+  CLEAR: "clear",    // clear entire canvas (owner or when full)
+  GALLERY: "gallery",
+  VIEW: "view",      // return to main canvas without staging
 } as const;

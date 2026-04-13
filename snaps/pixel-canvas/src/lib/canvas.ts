@@ -122,6 +122,140 @@ export async function saveUserLastPaint(store: DataStore, fid: number): Promise<
   await store.set(`cooldown:${fid}`, Date.now());
 }
 
+// ── Staged Canvas ─────────────────────────────────────────────────────────────
+
+/** Staged cells expire 15 minutes after being placed if never committed. */
+export const STAGE_TTL_MS = 15 * 60 * 1000;
+
+export interface StagedEntry {
+  color: PaletteColor;
+  fid: number;
+  expiresAt: number; // Unix ms
+}
+
+/** Sparse map of pending (uncommitted) cells: key = "row,col" */
+export type StagedCanvas = Record<string, StagedEntry>;
+
+const STAGED_KEY = "staged";
+
+/** Load staged canvas, silently dropping expired entries. */
+export async function loadStagedCanvas(store: DataStore): Promise<StagedCanvas> {
+  const raw = await store.get(STAGED_KEY);
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const now = Date.now();
+  const result: StagedCanvas = {};
+  for (const [key, val] of Object.entries(raw as Record<string, unknown>)) {
+    if (!val || typeof val !== "object" || Array.isArray(val)) continue;
+    const e = val as Record<string, unknown>;
+    if (
+      typeof e.fid !== "number" ||
+      !isValidColor(e.color) ||
+      typeof e.expiresAt !== "number" ||
+      e.expiresAt <= now
+    ) continue;
+    result[key] = { fid: e.fid, color: e.color as PaletteColor, expiresAt: e.expiresAt };
+  }
+  return result;
+}
+
+export async function saveStagedCanvas(store: DataStore, staged: StagedCanvas): Promise<void> {
+  await store.set(STAGED_KEY, staged as unknown as DataStoreValue);
+}
+
+/** How many cells a given FID has staged. */
+export function userStagedCount(staged: StagedCanvas, fid: number): number {
+  return Object.values(staged).filter((e) => e.fid === fid).length;
+}
+
+/** Remove all staged cells belonging to fid. Never mutates. */
+export function clearUserStaged(staged: StagedCanvas, fid: number): StagedCanvas {
+  if (userStagedCount(staged, fid) === 0) return staged;
+  const next: StagedCanvas = {};
+  for (const [key, entry] of Object.entries(staged)) {
+    if (entry.fid !== fid) next[key] = entry;
+  }
+  return next;
+}
+
+/**
+ * Stage cells for a user.
+ * Skips cells already committed OR staged by anyone else.
+ * Respects the PAINT_LIMIT per FID.
+ * Returns the original reference if nothing was added.
+ */
+export function stageUserCells(
+  staged: StagedCanvas,
+  canvas: CanvasState,
+  cells: Array<{ row: number; col: number }>,
+  color: PaletteColor,
+  fid: number,
+): StagedCanvas {
+  const used = userStagedCount(staged, fid);
+  const budget = PAINT_LIMIT - used;
+  if (budget <= 0 || cells.length === 0) return staged;
+
+  const expiresAt = Date.now() + STAGE_TTL_MS;
+  const paintable = cells
+    .filter(({ row, col }) => {
+      const key = `${row},${col}`;
+      return canvas[key] === undefined && staged[key] === undefined;
+    })
+    .slice(0, budget);
+
+  if (paintable.length === 0) return staged;
+
+  const next = { ...staged };
+  for (const { row, col } of paintable) {
+    next[`${row},${col}`] = { color, fid, expiresAt };
+  }
+  return next;
+}
+
+/**
+ * Commit a user's staged cells to the main canvas.
+ * Cells taken by others during staging are skipped (no-overpainting).
+ * All of the user's staged entries are removed regardless.
+ * Never mutates inputs.
+ */
+export function commitUserStaged(
+  canvas: CanvasState,
+  staged: StagedCanvas,
+  fid: number,
+): { newCanvas: CanvasState; newStaged: StagedCanvas; committed: number; staged: number } {
+  const userEntries = Object.entries(staged).filter(([, e]) => e.fid === fid);
+  if (userEntries.length === 0) {
+    return { newCanvas: canvas, newStaged: staged, committed: 0, staged: 0 };
+  }
+
+  const newCanvas = { ...canvas };
+  const newStaged = { ...staged };
+  let committed = 0;
+
+  for (const [key, entry] of userEntries) {
+    delete newStaged[key];
+    if (newCanvas[key] === undefined) {
+      newCanvas[key] = entry.color;
+      committed++;
+    }
+  }
+
+  return { newCanvas, newStaged, committed, staged: userEntries.length };
+}
+
+/**
+ * Merge committed and staged cells for display.
+ * Both sets are shown — staged visible to all users so they can see others' intent.
+ * Committed cells take priority (sets are disjoint by design, but just in case).
+ */
+export function buildDisplayCanvas(canvas: CanvasState, staged: StagedCanvas): CanvasState {
+  if (Object.keys(staged).length === 0) return canvas;
+  const stagingColors: CanvasState = {};
+  for (const [key, entry] of Object.entries(staged)) {
+    stagingColors[key] = entry.color;
+  }
+  return { ...stagingColors, ...canvas };
+}
+
 // ── Gallery ───────────────────────────────────────────────────────────────────
 
 export const MAX_GALLERY = 10;

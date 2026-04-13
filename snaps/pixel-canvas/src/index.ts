@@ -14,9 +14,9 @@ import {
   MAX_GALLERY,
   type PaletteColor,
   type GalleryEntry,
+  type StagedCanvas,
   parseGridTap,
   isValidColor,
-  paintCells,
   buildCellsArray,
   paintedCount,
   cooldownRemainingMs,
@@ -28,143 +28,181 @@ import {
   saveUserColor,
   loadUserLastPaint,
   saveUserLastPaint,
+  loadStagedCanvas,
+  saveStagedCanvas,
+  userStagedCount,
+  clearUserStaged,
+  stageUserCells,
+  commitUserStaged,
+  buildDisplayCanvas,
   saveSnapshot,
   loadGalleryCount,
   loadGalleryEntry,
 } from "./lib/canvas.js";
 
 const store = createTursoDataStore();
-
 const app = new Hono();
 
 const OWNER_FID = 14217; // boilerrat — can clear canvas at any time for moderation
 
-const RULES =
-  `3 cells/turn  \u00b7  5 min cooldown  \u00b7  no overpainting  \u00b7  SFW only`;
+const RULES = `3 cells/turn  \u00b7  5 min cooldown  \u00b7  no overpainting  \u00b7  SFW only`;
 
 const snap: SnapFunction = async (ctx): Promise<SnapHandlerResult> => {
   const base = snapBase(ctx.request);
   const url = new URL(ctx.request.url);
   const action = url.searchParams.get("action");
 
-  // ── Gallery view — handles both GET (shared link) and POST (navigation) ────
+  // ── Gallery — works for GET (shared link) and POST (nav buttons) ──────────
   if (action === ACTION.GALLERY) {
     const page = Math.max(0, parseInt(url.searchParams.get("page") ?? "0", 10) || 0);
     const count = await loadGalleryCount(store);
     if (count === 0) {
-      const canvas = await loadCanvas(store);
-      return renderCanvas(base, canvas, DEFAULT_COLOR, "No completed canvases yet");
+      const [canvas, staged] = await Promise.all([loadCanvas(store), loadStagedCanvas(store)]);
+      return renderCanvas(base, canvas, staged, DEFAULT_COLOR, 0, "No completed canvases yet");
     }
     const maxPage = Math.min(count, MAX_GALLERY) - 1;
     const safePage = Math.min(page, maxPage);
     const entry = await loadGalleryEntry(store, count, safePage);
     if (!entry) {
-      const canvas = await loadCanvas(store);
-      return renderCanvas(base, canvas, DEFAULT_COLOR, "Gallery entry not found");
+      const [canvas, staged] = await Promise.all([loadCanvas(store), loadStagedCanvas(store)]);
+      return renderCanvas(base, canvas, staged, DEFAULT_COLOR, 0, "Gallery entry not found");
     }
     return renderGallery(base, entry, safePage, count);
   }
 
-  // ── GET: initial canvas load ──────────────────────────────────────────────
+  // ── GET: initial load ─────────────────────────────────────────────────────
   if (ctx.action.type === "get") {
-    const canvas = await loadCanvas(store);
-    return renderCanvas(base, canvas, DEFAULT_COLOR);
+    const [canvas, staged] = await Promise.all([loadCanvas(store), loadStagedCanvas(store)]);
+    return renderCanvas(base, canvas, staged, DEFAULT_COLOR, 0);
   }
 
-  // ── POST actions ──────────────────────────────────────────────────────────
+  // ── POST: authenticated actions ───────────────────────────────────────────
   const { user, inputs } = ctx.action;
   const fid = user.fid;
 
-  // Return to main canvas without painting (from gallery back button)
+  // Return to main canvas from gallery (no paint, just refresh view)
   if (action === ACTION.VIEW) {
-    const [canvas, color] = await Promise.all([
+    const [canvas, staged, color] = await Promise.all([
       loadCanvas(store),
+      loadStagedCanvas(store),
       loadUserColor(store, fid),
     ]);
-    return renderCanvas(base, canvas, color);
+    return renderCanvas(base, canvas, staged, color, userStagedCount(staged, fid));
   }
 
-  const canvas = await loadCanvas(store);
+  const [canvas, staged] = await Promise.all([loadCanvas(store), loadStagedCanvas(store)]);
+  const myStaged = userStagedCount(staged, fid);
 
-  // Rule: clear only when canvas is completely full (owner can always clear)
+  // ── Cancel staging ────────────────────────────────────────────────────────
+  if (action === ACTION.CANCEL) {
+    const newStaged = clearUserStaged(staged, fid);
+    const color = await loadUserColor(store, fid);
+    await saveStagedCanvas(store, newStaged);
+    return renderCanvas(base, canvas, newStaged, color, 0, "Staged cells cleared");
+  }
+
+  // ── Clear canvas ──────────────────────────────────────────────────────────
   if (action === ACTION.CLEAR) {
     const isOwner = fid === OWNER_FID;
     const count = paintedCount(canvas);
     if (!isOwner && count < TOTAL_CELLS) {
       return renderCanvas(
-        base,
-        canvas,
-        DEFAULT_COLOR,
+        base, canvas, staged, DEFAULT_COLOR, myStaged,
         `Canvas must be full to clear (${count} / ${TOTAL_CELLS} painted)`,
       );
     }
     await saveSnapshot(store, canvas, fid);
     await saveCanvas(store, {});
-    return renderCanvas(base, {}, DEFAULT_COLOR, isOwner ? "Canvas cleared by moderator" : undefined);
-  }
-
-  // Default: paint
-  const colorRaw = inputs["color"];
-  const color: PaletteColor = isValidColor(colorRaw) ? colorRaw : await loadUserColor(store, fid);
-
-  // Rule: 5-minute cooldown per FID
-  const lastPaint = await loadUserLastPaint(store, fid);
-  const remaining = cooldownRemainingMs(lastPaint);
-  if (remaining > 0) {
     return renderCanvas(
-      base,
-      canvas,
-      color,
-      `Cooldown: ${formatCooldown(remaining)} remaining`,
+      base, {}, staged, DEFAULT_COLOR, myStaged,
+      isOwner ? "Canvas cleared by moderator" : undefined,
     );
   }
+
+  // ── Commit staged cells ───────────────────────────────────────────────────
+  if (action === ACTION.COMMIT || action === ACTION.PAINT) {
+    const color = await loadUserColor(store, fid);
+    if (myStaged === 0) {
+      return renderCanvas(base, canvas, staged, color, 0, "Stage some cells first — pick cells and hit Stage");
+    }
+    const lastPaint = await loadUserLastPaint(store, fid);
+    const remaining = cooldownRemainingMs(lastPaint);
+    if (remaining > 0) {
+      return renderCanvas(
+        base, canvas, staged, color, myStaged,
+        `Cooldown: ${formatCooldown(remaining)} remaining`,
+      );
+    }
+    const { newCanvas, newStaged, committed, staged: hadStaged } = commitUserStaged(canvas, staged, fid);
+    await Promise.all([
+      saveCanvas(store, newCanvas),
+      saveStagedCanvas(store, newStaged),
+      saveUserLastPaint(store, fid),
+    ]);
+    let msg: string | undefined;
+    if (committed === 0) {
+      msg = "All your staged cells were taken — no cooldown started";
+    } else if (committed < hadStaged) {
+      msg = `Painted ${committed} cell(s) — ${hadStaged - committed} were already taken`;
+    } else if (committed < PAINT_LIMIT) {
+      msg = `Painted ${committed} cell(s) — you can stage up to ${PAINT_LIMIT} next turn!`;
+    }
+    return renderCanvas(base, newCanvas, newStaged, color, 0, msg);
+  }
+
+  // ── Stage cells (default action) ──────────────────────────────────────────
+  const colorRaw = inputs["color"];
+  const color: PaletteColor = isValidColor(colorRaw) ? colorRaw : await loadUserColor(store, fid);
 
   const tappedCells = parseGridTap(inputs["grid_tap"]);
   if (tappedCells.length === 0) {
     await saveUserColor(store, fid, color);
-    return renderCanvas(base, canvas, color);
+    return renderCanvas(base, canvas, staged, color, myStaged);
   }
 
-  // Rule: max 3 cells per turn
-  const limited = tappedCells.slice(0, PAINT_LIMIT);
-  const truncated = tappedCells.length > PAINT_LIMIT;
-
-  const updated = paintCells(canvas, limited, color);
-
-  // Rule: no overpainting — if every selected cell was already taken, skip cooldown
-  if (updated === canvas) {
-    await saveUserColor(store, fid, color);
-    return renderCanvas(base, canvas, color, "Those cells are already painted — pick empty ones");
-  }
+  const newStaged = stageUserCells(staged, canvas, tappedCells, color, fid);
+  const newMyStaged = userStagedCount(newStaged, fid);
 
   await Promise.all([
-    saveCanvas(store, updated),
+    saveStagedCanvas(store, newStaged),
     saveUserColor(store, fid, color),
-    saveUserLastPaint(store, fid),
   ]);
 
-  const paintedNow = paintedCount(updated) - paintedCount(canvas);
   let msg: string | undefined;
-  if (truncated) {
-    msg = `Painted ${PAINT_LIMIT} cells (max per turn)`;
-  } else if (paintedNow < limited.length) {
-    msg = `Painted ${paintedNow} cell${paintedNow !== 1 ? "s" : ""} (some already taken)`;
+  if (newMyStaged === myStaged && tappedCells.length > 0) {
+    msg = "Those cells are already taken — pick empty ones";
+  } else if (newMyStaged >= PAINT_LIMIT) {
+    msg = `${newMyStaged} cell(s) staged — hit Paint! to commit`;
+  } else {
+    msg = `${newMyStaged} cell(s) staged — you can add ${PAINT_LIMIT - newMyStaged} more`;
   }
 
-  return renderCanvas(base, updated, color, msg);
+  return renderCanvas(base, canvas, newStaged, color, newMyStaged, msg);
 };
 
 function renderCanvas(
   base: string,
   canvas: Record<string, PaletteColor>,
+  staged: StagedCanvas,
   activeColor: PaletteColor,
+  myStaged: number,
   message?: string,
 ): SnapHandlerResult {
-  const count = paintedCount(canvas);
-  const cells = buildCellsArray(canvas);
-  const isFull = count >= TOTAL_CELLS;
+  const committed = paintedCount(canvas);
+  const displayCanvas = buildDisplayCanvas(canvas, staged);
+  const cells = buildCellsArray(displayCanvas);
+  const isFull = committed >= TOTAL_CELLS;
+  const hasMyStaged = myStaged > 0;
 
-  const statusContent = message ?? `${count} / ${TOTAL_CELLS} cells painted`;
+  const statusContent = message
+    ?? (hasMyStaged
+      ? `${myStaged} cell(s) staged — hit Paint! to commit`
+      : `${committed} / ${TOTAL_CELLS} cells painted`);
+
+  // Dynamic button row based on whether user has staged cells
+  const btnChildren = hasMyStaged
+    ? ["stage_btn", "commit_btn", "cancel_btn", "gallery_btn", "share_btn"]
+    : ["stage_btn", "clear_btn", "gallery_btn", "share_btn"];
 
   return {
     version: "2.0",
@@ -213,22 +251,45 @@ function renderCanvas(
         btn_row: {
           type: "stack",
           props: { direction: "horizontal" },
-          children: ["paint_btn", "clear_btn", "gallery_btn", "share_btn"],
+          children: btnChildren,
         },
-        paint_btn: {
+        stage_btn: {
           type: "button",
-          props: { label: "Paint", variant: "primary" },
+          props: {
+            label: hasMyStaged ? "Stage more" : "Stage",
+            variant: "primary",
+          },
           on: {
             press: {
               action: "submit",
-              params: { target: `${base}/?action=${ACTION.PAINT}` },
+              params: { target: `${base}/?action=${ACTION.STAGE}` },
+            },
+          },
+        },
+        commit_btn: {
+          type: "button",
+          props: { label: "Paint!" },
+          on: {
+            press: {
+              action: "submit",
+              params: { target: `${base}/?action=${ACTION.COMMIT}` },
+            },
+          },
+        },
+        cancel_btn: {
+          type: "button",
+          props: { label: "Cancel" },
+          on: {
+            press: {
+              action: "submit",
+              params: { target: `${base}/?action=${ACTION.CANCEL}` },
             },
           },
         },
         clear_btn: {
           type: "button",
           props: {
-            label: isFull ? "Clear Canvas" : `Clear (${count}/128)`,
+            label: isFull ? "Clear Canvas" : `Clear (${committed}/128)`,
           },
           on: {
             press: {
@@ -273,13 +334,12 @@ function renderGallery(
 ): SnapHandlerResult {
   const cells = buildCellsArray(entry.canvas);
   const available = Math.min(totalCount, MAX_GALLERY);
-  const canvasNumber = totalCount - displayPage; // most recent = highest number
-  const hasPrev = displayPage < available - 1; // older entries exist
-  const hasNext = displayPage > 0;             // newer entries exist
+  const canvasNumber = totalCount - displayPage;
+  const hasPrev = displayPage < available - 1;
+  const hasNext = displayPage > 0;
 
   const galleryUrl = (p: number) => `${base}/?action=${ACTION.GALLERY}&page=${p}`;
 
-  // Build nav children dynamically so boundary buttons disappear cleanly
   const navChildren: string[] = [];
   if (hasPrev) navChildren.push("prev_btn");
   navChildren.push("share_btn");

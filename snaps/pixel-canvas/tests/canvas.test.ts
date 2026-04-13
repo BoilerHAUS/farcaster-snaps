@@ -12,6 +12,14 @@ import {
   saveSnapshot,
   loadGalleryCount,
   loadGalleryEntry,
+  loadStagedCanvas,
+  saveStagedCanvas,
+  userStagedCount,
+  clearUserStaged,
+  stageUserCells,
+  commitUserStaged,
+  buildDisplayCanvas,
+  PAINT_LIMIT,
   MAX_GALLERY,
   COLS,
   ROWS,
@@ -270,5 +278,167 @@ describe("gallery storage", () => {
     expect(oldest).not.toBeNull();
     // Entry at MAX_GALLERY (11th oldest) is gone
     expect(await loadGalleryEntry(store, count, MAX_GALLERY)).toBeNull();
+  });
+});
+
+describe("userStagedCount", () => {
+  it("returns 0 for empty staged canvas", () => {
+    expect(userStagedCount({}, 1)).toBe(0);
+  });
+
+  it("counts only cells belonging to the given FID", () => {
+    const staged = {
+      "0,0": { color: "red" as const, fid: 1, expiresAt: Date.now() + 99999 },
+      "1,1": { color: "blue" as const, fid: 2, expiresAt: Date.now() + 99999 },
+      "2,2": { color: "green" as const, fid: 1, expiresAt: Date.now() + 99999 },
+    };
+    expect(userStagedCount(staged, 1)).toBe(2);
+    expect(userStagedCount(staged, 2)).toBe(1);
+    expect(userStagedCount(staged, 3)).toBe(0);
+  });
+});
+
+describe("clearUserStaged", () => {
+  it("returns same reference when FID has nothing staged", () => {
+    const staged = { "0,0": { color: "red" as const, fid: 2, expiresAt: 99999 } };
+    expect(clearUserStaged(staged, 1)).toBe(staged);
+  });
+
+  it("removes only the given FID's cells", () => {
+    const staged = {
+      "0,0": { color: "red" as const, fid: 1, expiresAt: 99999 },
+      "1,1": { color: "blue" as const, fid: 2, expiresAt: 99999 },
+    };
+    const result = clearUserStaged(staged, 1);
+    expect(result["0,0"]).toBeUndefined();
+    expect(result["1,1"]).toBeDefined();
+  });
+});
+
+describe("stageUserCells", () => {
+  const future = Date.now() + 99999;
+
+  it("stages empty cells for a user", () => {
+    const result = stageUserCells({}, {}, [{ row: 0, col: 0 }], "red", 1);
+    expect(result["0,0"]).toMatchObject({ color: "red", fid: 1 });
+  });
+
+  it("returns same reference when nothing can be staged", () => {
+    const staged = {};
+    const canvas = { "0,0": "red" as const };
+    const result = stageUserCells(staged, canvas, [{ row: 0, col: 0 }], "blue", 1);
+    expect(result).toBe(staged); // cell already committed
+  });
+
+  it("skips cells already staged by anyone", () => {
+    const staged = { "0,0": { color: "red" as const, fid: 2, expiresAt: future } };
+    const result = stageUserCells(staged, {}, [{ row: 0, col: 0 }], "blue", 1);
+    expect(result).toBe(staged); // cell already staged by fid 2
+  });
+
+  it("respects PAINT_LIMIT per FID", () => {
+    const cells = [0, 1, 2, 3].map((col) => ({ row: 0, col }));
+    const result = stageUserCells({}, {}, cells, "red", 1);
+    expect(userStagedCount(result, 1)).toBe(PAINT_LIMIT); // capped at 3
+  });
+
+  it("respects remaining budget when user already has staged cells", () => {
+    const staged = {
+      "0,0": { color: "red" as const, fid: 1, expiresAt: future },
+      "0,1": { color: "red" as const, fid: 1, expiresAt: future },
+    };
+    const result = stageUserCells(staged, {}, [{ row: 0, col: 2 }, { row: 0, col: 3 }], "blue", 1);
+    expect(userStagedCount(result, 1)).toBe(3); // 2 existing + 1 new (budget was 1)
+  });
+});
+
+describe("commitUserStaged", () => {
+  const future = Date.now() + 99999;
+
+  it("returns unchanged refs when FID has nothing staged", () => {
+    const canvas = { "0,0": "red" as const };
+    const staged = {};
+    const result = commitUserStaged(canvas, staged, 1);
+    expect(result.newCanvas).toBe(canvas);
+    expect(result.newStaged).toBe(staged);
+    expect(result.committed).toBe(0);
+  });
+
+  it("commits staged cells to the canvas", () => {
+    const staged = { "1,1": { color: "blue" as const, fid: 1, expiresAt: future } };
+    const { newCanvas, newStaged, committed } = commitUserStaged({}, staged, 1);
+    expect(newCanvas["1,1"]).toBe("blue");
+    expect(newStaged["1,1"]).toBeUndefined();
+    expect(committed).toBe(1);
+  });
+
+  it("skips cells taken by others while staging", () => {
+    const canvas = { "1,1": "red" as const }; // committed by someone else
+    const staged = { "1,1": { color: "blue" as const, fid: 1, expiresAt: future } };
+    const { newCanvas, committed } = commitUserStaged(canvas, staged, 1);
+    expect(newCanvas["1,1"]).toBe("red"); // not overwritten
+    expect(committed).toBe(0);
+  });
+
+  it("does not remove other users' staged cells", () => {
+    const staged = {
+      "0,0": { color: "red" as const, fid: 1, expiresAt: future },
+      "1,1": { color: "blue" as const, fid: 2, expiresAt: future },
+    };
+    const { newStaged } = commitUserStaged({}, staged, 1);
+    expect(newStaged["0,0"]).toBeUndefined(); // fid 1's cell committed
+    expect(newStaged["1,1"]).toBeDefined();   // fid 2's cell untouched
+  });
+});
+
+describe("buildDisplayCanvas", () => {
+  const future = Date.now() + 99999;
+
+  it("returns original canvas reference when staged is empty", () => {
+    const canvas = { "0,0": "red" as const };
+    expect(buildDisplayCanvas(canvas, {})).toBe(canvas);
+  });
+
+  it("merges staged cells into display", () => {
+    const canvas = { "0,0": "red" as const };
+    const staged = { "1,1": { color: "blue" as const, fid: 1, expiresAt: future } };
+    const result = buildDisplayCanvas(canvas, staged);
+    expect(result["0,0"]).toBe("red");
+    expect(result["1,1"]).toBe("blue");
+  });
+
+  it("committed cells take priority over staged in display", () => {
+    const canvas = { "0,0": "red" as const };
+    const staged = { "0,0": { color: "blue" as const, fid: 1, expiresAt: future } };
+    const result = buildDisplayCanvas(canvas, staged);
+    expect(result["0,0"]).toBe("red");
+  });
+});
+
+describe("staged canvas persistence", () => {
+  it("saves and loads staged canvas round-trip", async () => {
+    const store = createInMemoryDataStore();
+    const future = Date.now() + 99999;
+    const staged = {
+      "0,0": { color: "red" as const, fid: 1, expiresAt: future },
+    };
+    await saveStagedCanvas(store, staged);
+    const loaded = await loadStagedCanvas(store);
+    expect(loaded["0,0"]).toMatchObject({ color: "red", fid: 1 });
+  });
+
+  it("filters expired entries on load", async () => {
+    const store = createInMemoryDataStore();
+    const staged = {
+      "0,0": { color: "red" as const, fid: 1, expiresAt: Date.now() - 1 }, // expired
+    };
+    await saveStagedCanvas(store, staged);
+    const loaded = await loadStagedCanvas(store);
+    expect(loaded["0,0"]).toBeUndefined();
+  });
+
+  it("returns empty object for empty store", async () => {
+    const store = createInMemoryDataStore();
+    expect(await loadStagedCanvas(store)).toEqual({});
   });
 });
