@@ -64,7 +64,18 @@
       "Bash(curl -sS \"https://haatz.quilibrium.com/v2/\")",
       "Bash(curl -sS -I \"https://haatz.quilibrium.com/v1/castsByFid?fid=14217&pageSize=1\")",
       "Read(//home/boilerrat/.claude/skills/farcaster-snap/**)",
-      "Edit(~/.claude/skills/farcaster-snap/**)"
+      "Edit(~/.claude/skills/farcaster-snap/**)",
+      "Bash(npm search:*)",
+      "Bash(xargs -I{} sh -c 'echo \"{}: $\\(npm view {} dist-tags.latest 2>/dev/null\\)\"')",
+      "Bash(xargs cat:*)",
+      "Bash(chmod +x /media/boilerrat/Bobby/farcaster-snaps/snaps/pixel-canvas/package-for-host-neynar.sh)",
+      "Bash(curl -sS -H 'Accept: application/vnd.farcaster.snap+json' 'http://localhost:3004/')",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('painted:', d['ui']['elements']['status']['props']['content']\\); print\\('cells:', len\\(d['ui']['elements']['canvas']['props']['cells']\\)\\)\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('After clear:', d['ui']['elements']['status']['props']['content']\\)\")",
+      "Bash(kill 1684385)",
+      "Bash(curl -s https://api.host.neynar.app/v1/projects/80bcb0c0-44c1-48a9-af3d-242b05bc4abe/deploy/7c21ad94-6555-4596-ad3b-1e55211e6aba -H 'Authorization: Bearer 0ccd6e92-f9c4-479e-a1c7-c97d307ee833')",
+      "Bash(curl -fsSL -H 'Accept: application/vnd.farcaster.snap+json' 'https://pixel-canvas.host.neynar.app/')",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('version:', d['version']\\); print\\('accent:', d['theme']['accent']\\); print\\('elements:', len\\(d['ui']['elements']\\)\\); print\\('status:', d['ui']['elements']['status']['props']['content']\\)\")"
     ]
   },
   "disabledMcpServers": [
