@@ -1,0 +1,28 @@
+{
+  "name": "@farcaster-snaps/eggs-unstaker",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "packageManager": "pnpm@9.15.4",
+  "scripts": {
+    "dev": "SKIP_JFS_VERIFICATION=true tsx watch src/server.ts",
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@farcaster-snaps/hub": "workspace:*",
+    "@farcaster/snap": "^2.0.1",
+    "@farcaster/snap-hono": "^2.0.1",
+    "@hono/node-server": "^1.19.13",
+    "@noble/hashes": "^1.7.2",
+    "hono": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.5.2",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^2.0.0"
+  }
+}
